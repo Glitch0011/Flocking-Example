@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IncludePath>$(ProjectDir)Include;$(ProjectDir)External_Include;$(IncludePath)</IncludePath>
+    <IntDir>$(ProjectDir)Output\Immediate_$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Output\$(Configuration)\</OutDir>
+    <LibraryPath>$(ProjectDir)Libraries;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>COPY "$(ProjectDir)Binaries\glut32.dll" "$(OutDir)glut32.dll"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
