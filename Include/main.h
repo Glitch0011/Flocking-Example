@@ -4,12 +4,12 @@
 #include <time.h>
 #include <iostream>
 
-#define BIRD_COUNT 8000
+#define BIRD_COUNT 16000
 #define DRAW_SIZE 3
 #define HALF_DRAW_SIZE 1.5
 #define SEPERATION 10
 #define ALIGNMENT 40
-#define ATTRACTION_STRENGTH 0.005
+#define ATTRACTION_STRENGTH 0.05
 
 #define MAP_SIZE 20
 
@@ -41,17 +41,22 @@ typedef struct
 	float y;
 } vector2;
 
+#include <vector>
+
 struct bird
 {
 	vector2 position;
 	vector2 heading;
+	int lastPos;
 	int speed;
 };
-bird* birds;
+std::vector<bird> birds;
 
 struct bird_list
 {
 	bird* data;
 	bird_list* next;
 };
-bird_list ** bird_grid;
+//static bird_list ** bird_grid;
+
+static std::vector<bird*>* bird_grid;

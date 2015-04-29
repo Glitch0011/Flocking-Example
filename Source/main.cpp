@@ -1,5 +1,7 @@
 #include <main.h>
 
+#include <ThreadedLoop\ThreadedLoop.h>
+
 int inline __fastcall minus(int a, int b)
 {
 	int total;
@@ -84,8 +86,7 @@ void drawSquares()
 	#define tri_count 4
 	vector2 v[tri_count * BIRD_COUNT];
 
-	
-	bird* tmp = birds;
+	auto tmp = birds.data();
 	for (i = 0; i < BIRD_COUNT; i++)
 	{
 		v[(i * tri_count) + 0].x = tmp->position.x; v[(i * tri_count) + 0].y = tmp->position.y;
@@ -142,6 +143,9 @@ void drawMap()
 
 }
 
+ThreadedLoop<bird>* updateLoop = nullptr;
+volatile long* time_passed;
+
 void update()
 {
 	if (GetAsyncKeyState(VK_ESCAPE))
@@ -160,171 +164,172 @@ void update()
 
 	//Put in a wall check
 
+	
 
 #ifdef UPDATE_BIRDS
-	long time_passed, now;
+	static long now;
 
 	now = clock();
-	time_passed = now - last;
+	*time_passed = now - last;
 	frame_rate++;
 
-	bird* tmp = birds;
-	for (int i = 0; i < BIRD_COUNT; i++)
+	//bird* tmp = birds;
+	if (!updateLoop)
 	{
-		int before_move = GetGridPos(&tmp->position);
-
-		for (int ii = 0; ii < 6; ii++)
+		updateLoop = new ThreadedLoop<bird>([](bird* tmp, bird* end)
 		{
-			bird_list* target;
-			int target_no = -1;
-			switch (ii)
+			do
 			{
-				case 0: target_no = before_move; break;
-				case 1: target_no = before_move - 1; break;
-				case 2: target_no = before_move + 1; break;
-				case 3: target_no = before_move - ((xSize) / ALIGNMENT); break;
-				case 4: target_no = before_move + ((xSize) / ALIGNMENT); break;
-				case 5:	target_no = (before_move - 1) - ((xSize) / ALIGNMENT); break;
-				case 6: target_no = (before_move + 1) - ((xSize) / ALIGNMENT); break;
-				case 7: target_no = (before_move - 1) + ((xSize) / ALIGNMENT); break;
-				case 9: target_no = (before_move + 1) + ((xSize) / ALIGNMENT); break;
-			}
+				int before_move = GetGridPos(&tmp->position);
+				tmp->lastPos = before_move;
 
-			if (target_no > 0 && target_no < (xSize / ALIGNMENT) * (ySize / ALIGNMENT))
-				target = bird_grid[target_no];
-			else
-				target = 0;
-
-			while (target != 0)
-			{
-				if (target->data != tmp)
+				for (int ii = 0; ii < 6; ii++)
 				{
-					vector2 temp_v;
-					temp_v.x = target->data->position.x - tmp->position.x;
-					temp_v.y = target->data->position.y - tmp->position.y;
-
-					float dist = (temp_v.x * temp_v.x) + (temp_v.y * temp_v.y);
-
-					if (dist < (ALIGNMENT * ALIGNMENT) && dist > (SEPERATION * SEPERATION)) //ALIGNMENT
+					std::vector<bird*>* target;
+					int target_no = -1;
+					switch (ii)
 					{
-						vector2 theirs = target->data->heading;
-						theirs.x *= ATTRACTION_STRENGTH; theirs.y *= ATTRACTION_STRENGTH;
-						add_vector(&tmp->heading, &theirs);
+						case 0: target_no = before_move; break;
+						case 1: target_no = before_move - 1; break;
+						case 2: target_no = before_move + 1; break;
+						case 3: target_no = before_move - ((xSize) / ALIGNMENT); break;
+						case 4: target_no = before_move + ((xSize) / ALIGNMENT); break;
+						case 5:	target_no = (before_move - 1) - ((xSize) / ALIGNMENT); break;
+						case 6: target_no = (before_move + 1) - ((xSize) / ALIGNMENT); break;
+						case 7: target_no = (before_move - 1) + ((xSize) / ALIGNMENT); break;
+						case 9: target_no = (before_move + 1) + ((xSize) / ALIGNMENT); break;
 					}
-					if (dist < (SEPERATION * SEPERATION)) //Seaporation
+
+					if (target_no > 0 && target_no < (xSize / ALIGNMENT) * (ySize / ALIGNMENT))
 					{
-						//Work out vector between the two
-						vector2 v = vector2minus( &target->data->position, &tmp->position);
-						if (dist != 0)
+						target = &bird_grid[target_no];
+
+						for (auto& data : *target)
 						{
-							v.x /= dist;
-							v.y /= dist;
+							if (data != tmp)
+							{
+								vector2 temp_v;
+								temp_v.x = data->position.x - tmp->position.x;
+								temp_v.y = data->position.y - tmp->position.y;
+
+								float dist = (temp_v.x * temp_v.x) + (temp_v.y * temp_v.y);
+
+								if (dist < (ALIGNMENT * ALIGNMENT) && dist >(SEPERATION * SEPERATION)) //ALIGNMENT
+								{
+									vector2 theirs = data->heading;
+									theirs.x *= ATTRACTION_STRENGTH; theirs.y *= ATTRACTION_STRENGTH;
+									
+									theirs.x *= 0.190f;
+									theirs.y *= 0.190f;
+									
+									add_vector(&tmp->heading, &theirs);
+								}
+								if (dist < (SEPERATION * SEPERATION)) //Seaporation
+								{
+									//Work out vector between the two
+									vector2 v = vector2minus(&data->position, &tmp->position);
+									if (dist != 0)
+									{
+										v.x /= dist;
+										v.y /= dist;
+									}
+									v.x *= 0.1f;
+									v.y *= 0.1f;
+									add_vector(&tmp->heading, &v);
+								}
+							}
 						}
-						add_vector(&tmp->heading, &v);
 					}
 				}
-				target = target->next;
-			}
-		}
 
-		//Freewill
-		float addX = (float)((rand() % SPEED_MAX + SPEED_MIN)) * HUMANITY;
-		float addY = (float)((rand() % SPEED_MAX + SPEED_MIN)) * HUMANITY;
-		if ((rand() % 2 + 0) == 1) addX = -addX;
-		if ((rand() % 2 + 0) == 1) addY = -addY;
-		tmp->heading.x += addX;
-		tmp->heading.y += addY;
-		vector2_normalize(&tmp->heading);
+				//Freewill
+				float addX = (float)((rand() % SPEED_MAX + SPEED_MIN)) * HUMANITY;
+				float addY = (float)((rand() % SPEED_MAX + SPEED_MIN)) * HUMANITY;
+				if ((rand() % 2 + 0) == 1) addX = -addX;
+				if ((rand() % 2 + 0) == 1) addY = -addY;
+				tmp->heading.x += addX;
+				tmp->heading.y += addY;
+				vector2_normalize(&tmp->heading);
 
-		//Move the bird
-		vector2 future_pos;
-		future_pos.x = (tmp->heading.x * tmp->speed) * (time_passed * 0.10);
-		future_pos.y = (tmp->heading.y * tmp->speed) * (time_passed * 0.10);
-		add_vector(&future_pos, &tmp->position);
+				//Move the bird
+				vector2 future_pos;
+				future_pos.x = (tmp->heading.x * tmp->speed) * (*time_passed * 0.050);
+				future_pos.y = (tmp->heading.y * tmp->speed) * (*time_passed * 0.050);
+				add_vector(&future_pos, &tmp->position);
 
-		//Check for boundaries
-		if (future_pos.x > (xSize - DRAW_SIZE))
-		{
-			tmp->position.x = xSize - DRAW_SIZE;
-			tmp->heading.x = -tmp->heading.x;
-		}
-		else if (future_pos.x < 0)
-		{
-			tmp->position.x = 0;
-			tmp->heading.x = -tmp->heading.x;
-		}
-		else if (future_pos.y > (ySize - DRAW_SIZE))
-		{
-			tmp->position.y = ySize - DRAW_SIZE;
-			tmp->heading.y = -tmp->heading.y;
-		}
-		else if (future_pos.y < 0)
-		{
-			tmp->position.y = 0;
-			tmp->heading.y = -tmp->heading.y;
-		}
-		else
-		{
-			int map_x = future_pos.x / MAP_SIZE;
-			int map_y = future_pos.y / MAP_SIZE;
-			if (map[map_x][map_y] == 1)
-			{
-				tmp->heading.x = -tmp->heading.x;
-				tmp->heading.y = -tmp->heading.y;
-			}
-			else
-			{
-				tmp->position = future_pos;
-			}
-		}
+				//Check for boundaries
+				if (future_pos.x > (xSize - DRAW_SIZE))
+				{
+					tmp->position.x = xSize - DRAW_SIZE;
+					tmp->heading.x = -tmp->heading.x;
+				}
+				else if (future_pos.x < 0)
+				{
+					tmp->position.x = 0;
+					tmp->heading.x = -tmp->heading.x;
+				}
+				else if (future_pos.y > (ySize - DRAW_SIZE))
+				{
+					tmp->position.y = ySize - DRAW_SIZE;
+					tmp->heading.y = -tmp->heading.y;
+				}
+				else if (future_pos.y < 0)
+				{
+					tmp->position.y = 0;
+					tmp->heading.y = -tmp->heading.y;
+				}
+				else
+				{
+					int map_x = future_pos.x / MAP_SIZE;
+					int map_y = future_pos.y / MAP_SIZE;
+					if (map[map_x][map_y] == 1)
+					{
+						tmp->heading.x = -tmp->heading.x;
+						tmp->heading.y = -tmp->heading.y;
+					}
+					else
+					{
+						tmp->position = future_pos;
+					}
+				}
 
-		//1.Separation - avoid crowding neighbors (short range repulsion)
-		//2.ALIGNMENT - steer towards average heading of neighbors
-		//3.Cohesion - steer towards average position of neighbors (long range attraction)
+				//1.Separation - avoid crowding neighbors (short range repulsion)
+				//2.ALIGNMENT - steer towards average heading of neighbors
+				//3.Cohesion - steer towards average position of neighbors (long range attraction)
 
+			} while (++tmp != end);
+		}, &birds);
+	}
+
+	updateLoop->RunAndWait();
+
+	for (auto tmp = birds.begin(); tmp != birds.end(); tmp++)
+	{
+		int before_move = tmp->lastPos;
 		int after_move = GetGridPos(&tmp->position);
 
 		if (before_move != after_move)
 		{
-			bird_list* grid_tmp = bird_grid[before_move];
+			auto grid_tmp = bird_grid[before_move];
 
-			bird_list* previous = 0;
-			while (grid_tmp->data != tmp)
+			for (auto ptr = grid_tmp.begin(); ptr != grid_tmp.end(); ptr++)
 			{
-				previous = grid_tmp;
-				grid_tmp = grid_tmp->next;
+				if (*ptr == &(*tmp))
+				{
+					bird* a = (*ptr);
+					bird* b = grid_tmp.back();
+					std::swap(a, b);
+					grid_tmp.pop_back();
+					break;
+				}
 			}
-			bird_list* next = grid_tmp->next;
-			if (previous != 0)
-				previous->next = next;
-			else
-				bird_grid[before_move] = next;
-
-			delete grid_tmp;
 
 			grid_tmp = bird_grid[after_move];
-			if (grid_tmp != 0)
-			{
-				while (grid_tmp->next != 0)
-				{
-					grid_tmp = grid_tmp->next;
-				}
-				bird_list* l = new bird_list();
-				l->data = tmp;
-				l->next = 0;
-				grid_tmp->next = l;
-			}
-			else
-			{
-				bird_list* l = new bird_list();
-				l->data = tmp;
-				l->next = 0;
-				bird_grid[after_move] = l;
-			}
-		}
 
-		tmp++;
+			grid_tmp.push_back(&(*tmp));
+		}
 	}
+
 	last = now;
 #endif
 
@@ -372,7 +377,7 @@ void display()
 
 void on_exit()
 {
-	delete[] birds;
+	//delete[] birds;
 
 	for (int i = 0;i < xSize/MAP_SIZE; i++)
 	{
@@ -380,11 +385,11 @@ void on_exit()
 	}
 	delete[] map;
 
-	for (int i = 0;i < (xSize / ALIGNMENT) * (ySize / ALIGNMENT); i++)
+	/*for (int i = 0;i < (xSize / ALIGNMENT) * (ySize / ALIGNMENT); i++)
 	{
 		delete bird_grid[i];
 	}
-	delete[] bird_grid;
+	delete[] bird_grid;*/
 }
 
 #define random_number(min, max) rand() % (max) + min;
@@ -434,15 +439,15 @@ int main(int argc, char* argv[])
 	//-----------------------------------------------------------------------
 	//Generate Birds
 	//-----------------------------------------------------------------------
-	bird_grid = new bird_list*[(xSize / ALIGNMENT) * (ySize / ALIGNMENT)];
+	bird_grid = new std::vector<bird*>[(xSize / ALIGNMENT) * (ySize / ALIGNMENT)];
 	printf("Creating %d lists\n", (xSize / ALIGNMENT) * (ySize / ALIGNMENT));
 
-	for (int i = 0;i < (xSize / ALIGNMENT) * (ySize / ALIGNMENT); i++)
+	/*for (int i = 0;i < (xSize / ALIGNMENT) * (ySize / ALIGNMENT); i++)
 	{
-		bird_grid[i] = 0;
-	}
+		bird_grid[i].clear();
+	}*/
 
-	birds = new bird[BIRD_COUNT];
+	birds = std::vector<bird>(BIRD_COUNT);
 
 	for (i = 0; i < BIRD_COUNT; i++)
 	{
@@ -461,8 +466,11 @@ int main(int argc, char* argv[])
 		if ((rand() % 2 + 0) == 1) birds[i].heading.y = -birds[i].heading.y;
 
 		int grid_pos = GetGridPos(&birds[i].position);
-		bird_grid[grid_pos] = AddToList(bird_grid[grid_pos], &birds[i]);
+		bird_grid[grid_pos].push_back(&birds[i]);
 	}
+
+	time_passed = new long();
+
 	//-----------------------------------------------------------------------
 	//Generate Matricies
 	//-----------------------------------------------------------------------

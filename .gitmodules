@@ -1,0 +1,6 @@
+[submodule "ThreadedLoop"]
+	path = ThreadedLoop
+	url = ../ThreadedLoop
+[submodule "Include/ThreadedLoop"]
+	path = Include/ThreadedLoop
+	url = ../ThreadedLoop
