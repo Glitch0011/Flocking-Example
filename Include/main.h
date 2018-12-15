@@ -23,7 +23,7 @@
 #define SPEED_MIN 10
 
 //High = more random
-#define HUMANITY 0.009
+#define HUMANITY 0.010
 
 int xSize;
 int ySize;
